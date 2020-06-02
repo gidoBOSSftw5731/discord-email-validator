@@ -36,7 +36,7 @@ async def on_message(message):
     if 'token' in message.content:
         split = message.content.split(" ")
         if len(split) == 2 and split[0] == "token":
-            check_token_and_give_role(message.author, split[1])
+            await check_token_and_give_role(message.author, split[1])
             return
     else:
         await parse_email_message(message)
@@ -57,10 +57,11 @@ def get_role_for_domain(domain):
         return None
 
 async def check_token_and_give_role(user, token):
-    if user not in validation_tokens:
+    if user.id not in validation_tokens:
         await user.dm_channel.send("No awaiting validation")
+        return
 
-    if validation[user][0] == token:
+    if validation_tokens[user.id][0] == token:
         # Valid token
         role = discord.utils.get(user.server.roles, name=validation[user][1])
         await client.add_roles(user, role)
