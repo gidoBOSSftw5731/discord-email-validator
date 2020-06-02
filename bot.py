@@ -3,7 +3,7 @@ import os
 import random
 import asyncio
 import re
-
+import string
 import discord
 from dotenv import load_dotenv
 
@@ -40,7 +40,7 @@ async def on_message(message):
             return
     else:
         await parse_email_message(message)
-
+        return
 
     await message.author.dm_channel.send("Bad message")
 
@@ -79,7 +79,7 @@ async def parse_email_message(message):
     role = get_role_for_domain(domain)
     if role:
         random_token = randomString()
-        validation_token[message.author.id] = (random_token, role)
+        validation_tokens[message.author.id] = (random_token, role)
         # TODO: Send email
 
 
