@@ -55,7 +55,7 @@ async def on_ready():
 async def on_member_join(member):
     await member.create_dm()
     await member.dm_channel.send(
-        f'Send me your .edu email address to get a role in the CTF League discord server'
+        f'Send me your .edu email address to get a role in {guild.name}'
     )
 
 @client.event
@@ -115,12 +115,14 @@ async def parse_email_message(message):
             await message.author.dm_channel.send("We already sent you an email! Wait 1hr.")
             return
 
+    # Verify that the message was actually an email address
     email_regex = re.compile("^[A-Za-z0-9\.\-\_]+@[A-Za-z\.\-]+.edu$")
     email_split = message.content.split("@")
     if not email_regex.match(message.content) or len(email_split) != 2:
         await message.author.dm_channel.send("invalid email")
         return
 
+    # The role will be stored in a tuple with the token and expiration date
     domain = email_split[1]
     role = get_role_for_domain(domain)
     if role:
@@ -133,7 +135,6 @@ Please reply to the discord bot with the following:
 token """+random_token)
         await message.author.dm_channel.send("Check your email.")
 
-        # TODO: Add rate limit for sending email
     else:
         await message.author.dm_channel.send("Email domain is not known. Message admins for help.")
         return
