@@ -1,10 +1,18 @@
-# discord-email-validator
-give roles based on email address domain
+# Discord Email Validator
 
-interacts via DMs:
+Give roles based on the domain of a verified email address.
 
-Step 1: Send it your .edu email
+- DM it your .edu email
+- It sends you an email with a token
+- DM it the token it tells you to, and you get the role
 
-Step 2: it sends you email with a token
 
-Step 3: Send "token theTokenGoesHere" and u get the role associated with your email domain
+Config
+-------
+
+`.env`:
+- DISCORD_TOKEN - token from discord developer menu
+- EMAIL_USER - needs to be gmail or you should change the server to connect to in bot.py. also used as `from` addr
+- EMAIL_PASS - password for smtp authentication
+
+`schools.json`: Map from email domain to role name. These are resolved to actual roles when bot starts
