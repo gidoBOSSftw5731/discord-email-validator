@@ -6,6 +6,7 @@ import re
 import string
 import discord
 import json
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Email
@@ -98,12 +99,22 @@ async def check_token_and_give_role(user, token):
         if member:
             await member.add_roles(validation[1])
             await user.dm_channel.send("done")
+            del validation_tokens[user.id]
         else:
             await user.dm_channel.send("failed. dm admins")
     else:
         await user.dm_channel.send("bad token")
 
 async def parse_email_message(message):
+    # Rate limit: 1 request per hour
+    if message.author.id in validation_tokens:
+        expire = validation_tokens[message.author.id][2]
+        if datetime.now() > expire:
+            del validation_tokens[message.author.id]
+        else:
+            await message.author.dm_channel.send("We already sent you an email! Wait 1hr.")
+            return
+
     email_regex = re.compile("^[A-Za-z0-9\.\-\_]+@[A-Za-z\.\-]+.edu$")
     email_split = message.content.split("@")
     if not email_regex.match(message.content) or len(email_split) != 2:
@@ -114,12 +125,12 @@ async def parse_email_message(message):
     role = get_role_for_domain(domain)
     if role:
         random_token = randomString()
-        validation_tokens[message.author.id] = (random_token, role)
+        validation_tokens[message.author.id] = (random_token, role, datetime.now() + timedelta(hours=1) )
         send_email(message.content, """Subject: Discord Bot .edu Email Verification
 
-        Please reply to the discord bot with the following:
+Please reply to the discord bot with the following:
 
-        token """+random_token)
+token """+random_token)
         await message.author.dm_channel.send("Check your email.")
 
         # TODO: Add rate limit for sending email
