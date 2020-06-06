@@ -5,24 +5,56 @@ import asyncio
 import re
 import string
 import discord
+import json
 from dotenv import load_dotenv
+
+# Email
+import smtplib, ssl
+port = 465  # For SSL
+
+# Create a secure SSL context
+context = ssl.create_default_context()
+
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-
-client = discord.Client()
+EMAIL_USER = os.getenv('EMAIL_USER')
+EMAIL_PASS = os.getenv('EMAIL_PASS')
+client = discord.Client(fetch_offline_members=True)
 
 validation_tokens = {} # TODO: use a DB
+domain_role_map = {}
 
+
+guild = None
 @client.event
 async def on_ready():
+    global guild
     print(f'{client.user.name} has connected to Discord!')
+    # Only supports one guild
+    guild = await client.fetch_guilds().get()
+    with open("schools.json", "r") as f:
+        role_map_from_file = json.load(f)
+
+    actual_roles = await guild.fetch_roles()
+    # This is a terrible n^2 way of matching roles
+    # in the discord org to role names in the config
+    # file. It's fine cause it happens once and n is
+    # relatively small.
+    for domain, role_name in role_map_from_file.items():
+        # Find the matching role in the list of actual roles
+        for actual_role in actual_roles:
+            if actual_role.name == role_name:
+                domain_role_map[domain] = actual_role
+                break
+        if domain not in domain_role_map:
+            print("Could not find matching role for "+str(role_name))
 
 @client.event
 async def on_member_join(member):
     await member.create_dm()
     await member.dm_channel.send(
-        f'Send me your .edu email address to get a role'
+        f'Send me your .edu email address to get a role in the CTF League discord server'
     )
 
 @client.event
@@ -45,14 +77,12 @@ async def on_message(message):
     await message.author.dm_channel.send("Bad message")
 
 def randomString(stringLength=40):
-    letters = string.ascii_lowercase
+    letters = string.ascii_letters + string.digits
     return ''.join(random.choice(letters) for i in range(stringLength))
 
 def get_role_for_domain(domain):
-    # probably just want a map from domain to role,
-    # loaded as json on start or something
-    if domain == "osu.edu":
-        return "The Ohio State University"
+    if domain in domain_role_map:
+        return domain_role_map[domain]
     else:
         return None
 
@@ -61,11 +91,15 @@ async def check_token_and_give_role(user, token):
         await user.dm_channel.send("No awaiting validation")
         return
 
-    if validation_tokens[user.id][0] == token:
+    validation = validation_tokens[user.id]
+    if validation[0] == token:
         # Valid token
-        role = discord.utils.get(user.server.roles, name=validation[user][1])
-        await client.add_roles(user, role)
-        await user.dm_channel.send("done")
+        member = await guild.fetch_member(user.id)
+        if member:
+            await member.add_roles(validation[1])
+            await user.dm_channel.send("done")
+        else:
+            await user.dm_channel.send("failed. dm admins")
     else:
         await user.dm_channel.send("bad token")
 
@@ -81,14 +115,21 @@ async def parse_email_message(message):
     if role:
         random_token = randomString()
         validation_tokens[message.author.id] = (random_token, role)
-        # TODO: Send email
+        send_email(message.content, """Subject: Discord Bot .edu Email Verification
 
+        Please reply to the discord bot with the following:
+
+        token """+random_token)
+        await message.author.dm_channel.send("Check your email.")
 
         # TODO: Add rate limit for sending email
     else:
-        await message.author.dm_channel.send("email domain is not known. message admins for help.")
+        await message.author.dm_channel.send("Email domain is not known. Message admins for help.")
         return
 
-
+def send_email(address, body):
+    with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, address, body)
 
 client.run(TOKEN)
