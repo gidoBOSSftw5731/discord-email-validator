@@ -66,8 +66,8 @@ async def on_message(message):
     if message.channel != message.author.dm_channel:
         return
 
-    if 'token' in message.content:
-        split = message.content.split(" ")
+    if message.content[0:6] == "token_":
+        split = message.content.split("_")
         if len(split) == 2 and split[0] == "token":
             await check_token_and_give_role(message.author, split[1])
             return
@@ -132,7 +132,7 @@ async def parse_email_message(message):
 
 Please reply to the discord bot with the following:
 
-token """+random_token)
+token_"""+random_token)
         await message.author.dm_channel.send("Check your email.")
 
     else:
