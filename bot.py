@@ -1,4 +1,5 @@
 # bot.py
+import email.utils
 import os
 import random
 import asyncio
@@ -23,6 +24,7 @@ TOKEN: str = os.getenv('DISCORD_TOKEN') or ''
 EMAIL_USER: str  = os.getenv('EMAIL_USER') or ''
 EMAIL_PASS: str = os.getenv('EMAIL_PASS') or ''
 SMTP_ADDR: str = os.getenv('SMTP_ADDR') or 'smtp.gmail.com'
+OWNER_ID: int = int(os.getenv('OWNER_ID') or 181965297249550336)
 intents: discord.Intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -35,7 +37,7 @@ domain_role_map = {}
 
 guild = None
 @client.event
-async def on_ready():
+async def on_ready() -> None:
     global guild
     print(f'{client.user.name} has connected to Discord!')
     # Only supports one guild
@@ -56,11 +58,11 @@ async def on_ready():
                     break
             if domain not in domain_role_map:
                 print("Could not find matching role for "+str(role_name))
-    await tree.sync(guild=discord.Object(1060637647862767726))
                 
 
 @tree.command(name = "verify", description = "Have the bot DM you to verify, this should be done automatically", guild=discord.Object(id=1060637647862767726)) 
 async def verify_command(interaction) -> None:
+    await interaction.response.send_message("Sending you a DM!", ephemeral=True)
     await start_verification(interaction.user, interaction.guild)
     
 @client.event
@@ -70,12 +72,12 @@ async def on_member_join(member) -> None:
 async def start_verification(member, guild) -> None:
     await member.create_dm()
     await member.dm_channel.send(
-        f'Send me your .edu email address to get a role in {guild.name}'
+        f'Send me your .edu email address to get a role in {guild.name}. Formats accepted: `abc1234@rit.edu`, `abc1234@g.rit.edu`, or `nickname@mail.rit.edu`.'
     )
 
 @tree.command(name='sync', description='Owner only')
 async def sync(interaction: discord.Interaction) -> None:
-    if interaction.user.id == 181965297249550336:
+    if interaction.user.id == OWNER_ID:
         await tree.sync()
         print('Command tree synced.')
     else:
@@ -151,9 +153,11 @@ async def parse_email_message(message) -> None:
     if role:
         random_token = randomString()
         validation_tokens[message.author.id] = (random_token, role, datetime.now() + timedelta(hours=1) )
+        # If I wrote this myself I would've used email.message, just saying
         send_email(message.content, """Subject: RIT Discord Email Verification
 From: RIT Email Verification Bot <ritemailverificaiton@gido.click>
-
+To: """+message.content+"""
+Date: """+email.utils.formatdate()+"""
 
 Please reply to the discord bot with the following:
 
