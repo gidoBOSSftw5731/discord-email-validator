@@ -5,23 +5,29 @@ import asyncio
 import re
 import string
 import discord
+from discord import app_commands
 import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Email
 import smtplib, ssl
-port = 465  # For SSL
+port: int = 465  # For SSL
 
 # Create a secure SSL context
-context = ssl.create_default_context()
+context: ssl.SSLContext = ssl.create_default_context()
 
 
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-EMAIL_USER = os.getenv('EMAIL_USER')
-EMAIL_PASS = os.getenv('EMAIL_PASS')
-client = discord.Client(fetch_offline_members=True)
+TOKEN: str | None = os.getenv('DISCORD_TOKEN')
+EMAIL_USER: str | None = os.getenv('EMAIL_USER')
+EMAIL_PASS: str | None = os.getenv('EMAIL_PASS')
+SMTP_ADDR: str | None = os.getenv('SMTP_ADDR')
+intents: discord.Intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+client: discord.Client = discord.Client(fetch_offline_members=True, intents=intents)
+tree: app_commands.CommandTree[discord.Client] = app_commands.CommandTree(client)
 
 validation_tokens = {} # TODO: use a DB
 domain_role_map = {}
@@ -33,33 +39,50 @@ async def on_ready():
     global guild
     print(f'{client.user.name} has connected to Discord!')
     # Only supports one guild
-    guild = await client.fetch_guilds().get()
-    with open("schools.json", "r") as f:
-        role_map_from_file = json.load(f)
+    async for guild in client.fetch_guilds():
+        with open("schools.json", "r") as f:
+            role_map_from_file = json.load(f)
 
-    actual_roles = await guild.fetch_roles()
-    # This is a terrible n^2 way of matching roles
-    # in the discord org to role names in the config
-    # file. It's fine cause it happens once and n is
-    # relatively small.
-    for domain, role_name in role_map_from_file.items():
-        # Find the matching role in the list of actual roles
-        for actual_role in actual_roles:
-            if actual_role.name == role_name:
-                domain_role_map[domain] = actual_role
-                break
-        if domain not in domain_role_map:
-            print("Could not find matching role for "+str(role_name))
+        actual_roles = await guild.fetch_roles()
+        # This is a terrible n^2 way of matching roles
+        # in the discord org to role names in the config
+        # file. It's fine cause it happens once and n is
+        # relatively small.
+        for domain, role_name in role_map_from_file.items():
+            # Find the matching role in the list of actual roles
+            for actual_role in actual_roles:
+                if actual_role.name == role_name:
+                    domain_role_map[domain] = actual_role
+                    break
+            if domain not in domain_role_map:
+                print("Could not find matching role for "+str(role_name))
+    await tree.sync(guild=discord.Object(1060637647862767726))
+                
 
+@tree.command(name = "verify", description = "Have the bot DM you to verify, this should be done automatically", guild=discord.Object(id=1060637647862767726)) 
+async def verify_command(interaction) -> None:
+    await start_verification(interaction.user, interaction.guild)
+    
 @client.event
-async def on_member_join(member):
+async def on_member_join(member) -> None:
+    await start_verification(member, guild)
+    
+async def start_verification(member, guild) -> None:
     await member.create_dm()
     await member.dm_channel.send(
         f'Send me your .edu email address to get a role in {guild.name}'
     )
 
+@tree.command(name='sync', description='Owner only')
+async def sync(interaction: discord.Interaction) -> None:
+    if interaction.user.id == 181965297249550336:
+        await tree.sync()
+        print('Command tree synced.')
+    else:
+        await interaction.response.send_message('You must be the owner to use this command!')
+
 @client.event
-async def on_message(message):
+async def on_message(message) -> None:
     if message.author == client.user:
         return
 
@@ -77,8 +100,8 @@ async def on_message(message):
 
     await message.author.dm_channel.send("Bad message")
 
-def randomString(stringLength=40):
-    letters = string.ascii_letters + string.digits
+def randomString(stringLength=40) -> str:
+    letters: str = string.ascii_letters + string.digits
     return ''.join(random.choice(letters) for i in range(stringLength))
 
 def get_role_for_domain(domain):
@@ -87,7 +110,7 @@ def get_role_for_domain(domain):
     else:
         return None
 
-async def check_token_and_give_role(user, token):
+async def check_token_and_give_role(user, token) -> None:
     if user.id not in validation_tokens:
         await user.dm_channel.send("No awaiting validation")
         return
@@ -105,7 +128,7 @@ async def check_token_and_give_role(user, token):
     else:
         await user.dm_channel.send("bad token")
 
-async def parse_email_message(message):
+async def parse_email_message(message) -> None:
     # Rate limit: 1 request per hour
     if message.author.id in validation_tokens:
         expire = validation_tokens[message.author.id][2]
@@ -140,7 +163,7 @@ token_"""+random_token)
         return
 
 def send_email(address, body):
-    with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+    with smtplib.SMTP_SSL(SMTP_ADDR, port, context=context) as server:
         server.login(EMAIL_USER, EMAIL_PASS)
         server.sendmail(EMAIL_USER, address, body)
 
