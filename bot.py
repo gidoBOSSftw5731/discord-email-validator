@@ -19,10 +19,10 @@ context: ssl.SSLContext = ssl.create_default_context()
 
 
 load_dotenv()
-TOKEN: str | None = os.getenv('DISCORD_TOKEN')
-EMAIL_USER: str | None = os.getenv('EMAIL_USER')
-EMAIL_PASS: str | None = os.getenv('EMAIL_PASS')
-SMTP_ADDR: str | None = os.getenv('SMTP_ADDR')
+TOKEN: str = os.getenv('DISCORD_TOKEN') or ''
+EMAIL_USER: str  = os.getenv('EMAIL_USER') or ''
+EMAIL_PASS: str = os.getenv('EMAIL_PASS') or ''
+SMTP_ADDR: str = os.getenv('SMTP_ADDR') or 'smtp.gmail.com'
 intents: discord.Intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -151,7 +151,9 @@ async def parse_email_message(message) -> None:
     if role:
         random_token = randomString()
         validation_tokens[message.author.id] = (random_token, role, datetime.now() + timedelta(hours=1) )
-        send_email(message.content, """Subject: Discord Bot .edu Email Verification
+        send_email(message.content, """Subject: RIT Discord Email Verification
+From: RIT Email Verification Bot <ritemailverificaiton@gido.click>
+
 
 Please reply to the discord bot with the following:
 
@@ -165,6 +167,6 @@ token_"""+random_token)
 def send_email(address, body):
     with smtplib.SMTP_SSL(SMTP_ADDR, port, context=context) as server:
         server.login(EMAIL_USER, EMAIL_PASS)
-        server.sendmail(EMAIL_USER, address, body)
+        server.sendmail(EMAIL_USER, address, body,)
 
 client.run(TOKEN)
